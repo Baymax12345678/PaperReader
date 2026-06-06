@@ -1,0 +1,503 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>PaperReader Layout Concepts</title>
+    <style>
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        margin: 0;
+        background: #111827;
+        color: #111827;
+        font-family:
+          Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      }
+
+      .board {
+        display: grid;
+        gap: 28px;
+        padding: 28px;
+      }
+
+      .concept {
+        aspect-ratio: 16 / 9;
+        border-radius: 18px;
+        box-shadow: 0 30px 90px rgba(0, 0, 0, 0.34);
+        overflow: hidden;
+        position: relative;
+      }
+
+      .concept::before {
+        content: "";
+        inset: 0;
+        position: absolute;
+      }
+
+      .shell {
+        inset: 0;
+        padding: 34px;
+        position: absolute;
+        z-index: 1;
+      }
+
+      .top {
+        align-items: end;
+        display: flex;
+        justify-content: space-between;
+        margin-bottom: 20px;
+      }
+
+      .brand {
+        font-size: 13px;
+        font-weight: 900;
+        letter-spacing: 0.16em;
+        margin: 0 0 8px;
+        text-transform: uppercase;
+      }
+
+      h1 {
+        font-size: 44px;
+        letter-spacing: -0.03em;
+        line-height: 1;
+        margin: 0;
+      }
+
+      .sub {
+        font-size: 15px;
+        font-weight: 650;
+        margin: 12px 0 0;
+      }
+
+      .grid {
+        display: grid;
+        gap: 18px;
+        grid-template-columns: 3fr 7fr;
+        height: calc(100% - 112px);
+      }
+
+      .panel,
+      .result {
+        border-radius: 14px;
+        min-width: 0;
+      }
+
+      .panel {
+        display: flex;
+        flex-direction: column;
+        gap: 14px;
+        padding: 18px;
+      }
+
+      .label {
+        font-size: 12px;
+        font-weight: 850;
+        margin-bottom: 6px;
+      }
+
+      .input,
+      .select {
+        border-radius: 10px;
+        font-size: 15px;
+        font-weight: 750;
+        padding: 12px;
+      }
+
+      .chips {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+      }
+
+      .chip {
+        border-radius: 999px;
+        font-size: 12px;
+        font-weight: 850;
+        padding: 7px 10px;
+      }
+
+      .row {
+        display: grid;
+        gap: 10px;
+        grid-template-columns: 1fr 0.66fr;
+      }
+
+      .search {
+        border-radius: 12px;
+        color: white;
+        font-size: 16px;
+        font-weight: 900;
+        margin-top: auto;
+        padding: 13px;
+        text-align: center;
+      }
+
+      .result {
+        display: flex;
+        flex-direction: column;
+        padding: 18px;
+      }
+
+      .result-head {
+        align-items: center;
+        display: flex;
+        justify-content: space-between;
+        margin-bottom: 12px;
+      }
+
+      .count {
+        font-size: 23px;
+        font-weight: 900;
+      }
+
+      .actions {
+        display: flex;
+        gap: 8px;
+      }
+
+      .action {
+        border-radius: 10px;
+        font-size: 12px;
+        font-weight: 850;
+        padding: 9px 11px;
+      }
+
+      .papers {
+        display: grid;
+        gap: 10px;
+        overflow: hidden;
+      }
+
+      .paper {
+        border-radius: 12px;
+        padding: 13px 14px;
+      }
+
+      .meta {
+        display: flex;
+        gap: 8px;
+        margin-bottom: 7px;
+      }
+
+      .pill {
+        border-radius: 999px;
+        font-size: 11px;
+        font-weight: 850;
+        padding: 4px 8px;
+      }
+
+      .title {
+        font-size: 17px;
+        font-weight: 900;
+        line-height: 1.25;
+        margin-bottom: 6px;
+      }
+
+      .authors,
+      .abstract {
+        font-size: 12px;
+        line-height: 1.45;
+      }
+
+      .pager {
+        align-items: center;
+        display: flex;
+        gap: 8px;
+        justify-content: center;
+        margin-top: auto;
+        padding-top: 12px;
+      }
+
+      .page-btn,
+      .page-num {
+        border-radius: 999px;
+        font-size: 12px;
+        font-weight: 850;
+        padding: 8px 12px;
+      }
+
+      .library {
+        background-image:
+          linear-gradient(90deg, rgba(245, 248, 252, 0.96), rgba(245, 248, 252, 0.86)),
+          url("https://images.unsplash.com/photo-1521587760476-6c12a4b040da?auto=format&fit=crop&w=1800&q=80");
+        background-position: center;
+        background-size: cover;
+      }
+
+      .library .brand {
+        color: #2563eb;
+      }
+
+      .library h1,
+      .library .count {
+        color: #0f172a;
+      }
+
+      .library .sub {
+        color: #566579;
+      }
+
+      .library .panel,
+      .library .result,
+      .library .paper {
+        background: rgba(255, 255, 255, 0.92);
+        border: 1px solid rgba(203, 213, 225, 0.9);
+      }
+
+      .library .input,
+      .library .select,
+      .library .action,
+      .library .page-btn,
+      .library .page-num {
+        background: #f8fafc;
+        border: 1px solid #cbd5e1;
+      }
+
+      .library .chip,
+      .library .pill {
+        background: #e8f0ff;
+        color: #174ea6;
+      }
+
+      .library .search {
+        background: #1d4ed8;
+      }
+
+      .glass {
+        background-image:
+          linear-gradient(135deg, rgba(14, 165, 233, 0.25), rgba(99, 102, 241, 0.24)),
+          url("https://images.unsplash.com/photo-1518005020951-eccb494ad742?auto=format&fit=crop&w=1800&q=80");
+        background-position: center;
+        background-size: cover;
+      }
+
+      .glass::before {
+        backdrop-filter: blur(2px);
+        background: radial-gradient(circle at 70% 20%, rgba(255, 255, 255, 0.42), transparent 34%);
+      }
+
+      .glass .brand,
+      .glass .sub {
+        color: rgba(255, 255, 255, 0.82);
+      }
+
+      .glass h1,
+      .glass .count {
+        color: white;
+      }
+
+      .glass .panel,
+      .glass .result,
+      .glass .paper {
+        background: rgba(255, 255, 255, 0.18);
+        border: 1px solid rgba(255, 255, 255, 0.34);
+        box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.2);
+        color: white;
+      }
+
+      .glass .input,
+      .glass .select,
+      .glass .action,
+      .glass .page-btn,
+      .glass .page-num {
+        background: rgba(255, 255, 255, 0.22);
+        border: 1px solid rgba(255, 255, 255, 0.35);
+        color: white;
+      }
+
+      .glass .chip,
+      .glass .pill {
+        background: rgba(255, 255, 255, 0.24);
+        color: white;
+      }
+
+      .glass .search {
+        background: #0f172a;
+      }
+
+      .minimal {
+        background-image:
+          linear-gradient(90deg, rgba(255, 255, 255, 0.97), rgba(250, 250, 249, 0.9)),
+          url("https://images.unsplash.com/photo-1497366754035-f200968a6e72?auto=format&fit=crop&w=1800&q=80");
+        background-position: center;
+        background-size: cover;
+      }
+
+      .minimal .brand {
+        color: #0f766e;
+      }
+
+      .minimal .sub {
+        color: #6b7280;
+      }
+
+      .minimal .panel,
+      .minimal .result {
+        background: #ffffff;
+        border: 1px solid #e5e7eb;
+      }
+
+      .minimal .paper {
+        background: #fafafa;
+        border: 1px solid #eeeeee;
+      }
+
+      .minimal .input,
+      .minimal .select,
+      .minimal .action,
+      .minimal .page-btn,
+      .minimal .page-num {
+        background: white;
+        border: 1px solid #e5e7eb;
+      }
+
+      .minimal .chip,
+      .minimal .pill {
+        background: #ecfdf5;
+        color: #047857;
+      }
+
+      .minimal .search {
+        background: #0f766e;
+      }
+
+      .dark {
+        background-image:
+          linear-gradient(90deg, rgba(2, 6, 23, 0.98), rgba(15, 23, 42, 0.88)),
+          url("https://images.unsplash.com/photo-1535223289827-42f1e9919769?auto=format&fit=crop&w=1800&q=80");
+        background-position: center;
+        background-size: cover;
+      }
+
+      .dark .brand {
+        color: #38bdf8;
+      }
+
+      .dark h1,
+      .dark .count,
+      .dark .paper,
+      .dark .panel,
+      .dark .result {
+        color: #e5edf7;
+      }
+
+      .dark .sub,
+      .dark .authors,
+      .dark .abstract {
+        color: #94a3b8;
+      }
+
+      .dark .panel,
+      .dark .result {
+        background: rgba(15, 23, 42, 0.84);
+        border: 1px solid rgba(148, 163, 184, 0.24);
+      }
+
+      .dark .paper,
+      .dark .input,
+      .dark .select,
+      .dark .action,
+      .dark .page-btn,
+      .dark .page-num {
+        background: rgba(30, 41, 59, 0.92);
+        border: 1px solid rgba(148, 163, 184, 0.2);
+        color: #e5edf7;
+      }
+
+      .dark .chip,
+      .dark .pill {
+        background: rgba(14, 165, 233, 0.14);
+        color: #7dd3fc;
+      }
+
+      .dark .search {
+        background: #0284c7;
+      }
+
+      body.single .board {
+        padding: 0;
+      }
+
+      body.single .concept {
+        border-radius: 0;
+        box-shadow: none;
+        min-height: 100vh;
+      }
+    </style>
+  </head>
+  <body>
+    <main class="board">
+      <section class="concept library" id="concept-library">
+        <div class="shell">
+          <div class="top">
+            <div>
+              <p class="brand">PaperReader</p>
+              <h1>论文搜索与 Zotero 导入助手</h1>
+              <p class="sub">左侧精准检索，右侧快速筛选、跳转论文网页并导入 Zotero。</p>
+            </div>
+          </div>
+          <div class="grid">
+            <div class="panel">
+              <div><div class="label">研究主题</div><div class="input">test-time scaling</div></div>
+              <div><div class="label">会议 / 期刊</div><div class="chips"><span class="chip">arXiv</span><span class="chip">NeurIPS</span><span class="chip">ICML</span><span class="chip">ICLR</span></div></div>
+              <div class="row"><div><div class="label">起始</div><div class="select">2024年 01月</div></div><div><div class="label">结束</div><div class="select">2026年 12月</div></div></div>
+              <div><div class="label">数量</div><div class="select">25 篇</div></div>
+              <div class="search">搜索论文</div>
+            </div>
+            <div class="result">
+              <div class="result-head"><div class="count">25 篇结果</div><div class="actions"><span class="action">导入 Zotero</span><span class="action">按时间排序</span></div></div>
+              <div class="papers">
+                <div class="paper"><div class="meta"><span class="pill">2025-01-31</span><span class="pill">匹配度 366</span></div><div class="title">s1: Simple test-time scaling</div><div class="authors">Niklas Muennighoff 等 10 位作者</div><div class="abstract">Test-time scaling is a promising approach that uses extra compute to improve performance...</div></div>
+                <div class="paper"><div class="meta"><span class="pill">2026-02-12</span><span class="pill">arXiv</span></div><div class="title">Agentic Test-Time Scaling for WebAgents</div><div class="authors">Nicholas Lee 等 7 位作者</div><div class="abstract">A technique for dynamically allocating compute for multi-step web agents...</div></div>
+                <div class="paper"><div class="meta"><span class="pill">2025-08-05</span><span class="pill">PDF</span></div><div class="title">CTTS: Collective Test-Time Scaling</div><div class="authors">Zhende Song 等 7 位作者</div><div class="abstract">Collective scaling methods for improving LLM inference-time behavior...</div></div>
+              </div>
+              <div class="pager"><span class="page-btn">上一页</span><span class="page-num">第 1 / 3 页</span><span class="page-btn">下一页</span></div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="concept glass" id="concept-glass">
+        <div class="shell">
+          <div class="top"><div><p class="brand">PaperReader</p><h1>论文搜索与 Zotero 导入助手</h1><p class="sub">玻璃质感工作台，适合强调轻量、未来感和视觉氛围。</p></div></div>
+          <div class="grid">
+            <div class="panel"><div><div class="label">研究主题</div><div class="input">test-time scaling</div></div><div><div class="label">会议 / 期刊</div><div class="chips"><span class="chip">arXiv</span><span class="chip">NeurIPS</span><span class="chip">ICML</span><span class="chip">ICLR</span></div></div><div class="row"><div><div class="label">起始</div><div class="select">2024 / 01</div></div><div><div class="label">结束</div><div class="select">2026 / 12</div></div></div><div class="search">搜索论文</div></div>
+            <div class="result"><div class="result-head"><div class="count">25 篇结果</div><div class="actions"><span class="action">导入 Zotero</span><span class="action">按时间排序</span></div></div><div class="papers"><div class="paper"><div class="meta"><span class="pill">2025-01-31</span><span class="pill">匹配度 366</span></div><div class="title">s1: Simple test-time scaling</div><div class="authors">Niklas Muennighoff 等 10 位作者</div><div class="abstract">A concise abstract preview sits on translucent cards with strong title hierarchy.</div></div><div class="paper"><div class="meta"><span class="pill">2026-02-12</span><span class="pill">论文网页</span></div><div class="title">Agentic Test-Time Scaling for WebAgents</div><div class="authors">Nicholas Lee 等 7 位作者</div><div class="abstract">Clickable titles and metadata chips stay readable against the photographic background.</div></div><div class="paper"><div class="meta"><span class="pill">2025-08-05</span><span class="pill">PDF</span></div><div class="title">CTTS: Collective Test-Time Scaling</div><div class="authors">Zhende Song 等 7 位作者</div><div class="abstract">Pagination remains pinned to the bottom of the result panel.</div></div></div><div class="pager"><span class="page-btn">上一页</span><span class="page-num">第 1 / 3 页</span><span class="page-btn">下一页</span></div></div>
+          </div>
+        </div>
+      </section>
+
+      <section class="concept minimal" id="concept-minimal">
+        <div class="shell">
+          <div class="top"><div><p class="brand">PaperReader</p><h1>论文搜索与 Zotero 导入助手</h1><p class="sub">极简文献管理风，更像生产力工具，留白充足但不松散。</p></div></div>
+          <div class="grid">
+            <div class="panel"><div><div class="label">研究主题</div><div class="input">test-time scaling</div></div><div><div class="label">会议 / 期刊</div><div class="chips"><span class="chip">arXiv</span><span class="chip">NeurIPS</span><span class="chip">ICML</span><span class="chip">ICLR</span></div></div><div class="row"><div><div class="label">起始</div><div class="select">2024年01月</div></div><div><div class="label">结束</div><div class="select">2026年12月</div></div></div><div class="search">搜索论文</div></div>
+            <div class="result"><div class="result-head"><div class="count">25 篇结果</div><div class="actions"><span class="action">导入 Zotero</span><span class="action">按时间排序</span></div></div><div class="papers"><div class="paper"><div class="meta"><span class="pill">2025-01-31</span><span class="pill">匹配度 366</span></div><div class="title">s1: Simple test-time scaling</div><div class="authors">Niklas Muennighoff 等 10 位作者</div><div class="abstract">Clean row cards emphasize reading speed and stable alignment.</div></div><div class="paper"><div class="meta"><span class="pill">2026-02-12</span><span class="pill">arXiv</span></div><div class="title">Agentic Test-Time Scaling for WebAgents</div><div class="authors">Nicholas Lee 等 7 位作者</div><div class="abstract">Less decoration, stronger typography, easier long-session use.</div></div><div class="paper"><div class="meta"><span class="pill">2025-08-05</span><span class="pill">PDF</span></div><div class="title">CTTS: Collective Test-Time Scaling</div><div class="authors">Zhende Song 等 7 位作者</div><div class="abstract">Best choice if the app is meant to feel like Zotero-adjacent tooling.</div></div></div><div class="pager"><span class="page-btn">上一页</span><span class="page-num">第 1 / 3 页</span><span class="page-btn">下一页</span></div></div>
+          </div>
+        </div>
+      </section>
+
+      <section class="concept dark" id="concept-dark">
+        <div class="shell">
+          <div class="top"><div><p class="brand">PaperReader</p><h1>论文搜索与 Zotero 导入助手</h1><p class="sub">深色专业风，适合夜间阅读和技术感较强的研究工作流。</p></div></div>
+          <div class="grid">
+            <div class="panel"><div><div class="label">研究主题</div><div class="input">test-time scaling</div></div><div><div class="label">会议 / 期刊</div><div class="chips"><span class="chip">arXiv</span><span class="chip">NeurIPS</span><span class="chip">ICML</span><span class="chip">ICLR</span></div></div><div class="row"><div><div class="label">起始</div><div class="select">2024年01月</div></div><div><div class="label">结束</div><div class="select">2026年12月</div></div></div><div class="search">搜索论文</div></div>
+            <div class="result"><div class="result-head"><div class="count">25 篇结果</div><div class="actions"><span class="action">导入 Zotero</span><span class="action">按时间排序</span></div></div><div class="papers"><div class="paper"><div class="meta"><span class="pill">2025-01-31</span><span class="pill">匹配度 366</span></div><div class="title">s1: Simple test-time scaling</div><div class="authors">Niklas Muennighoff 等 10 位作者</div><div class="abstract">Dark mode focuses attention on titles, metadata and paper actions.</div></div><div class="paper"><div class="meta"><span class="pill">2026-02-12</span><span class="pill">论文网页</span></div><div class="title">Agentic Test-Time Scaling for WebAgents</div><div class="authors">Nicholas Lee 等 7 位作者</div><div class="abstract">Strong contrast with blue interaction accents.</div></div><div class="paper"><div class="meta"><span class="pill">2025-08-05</span><span class="pill">PDF</span></div><div class="title">CTTS: Collective Test-Time Scaling</div><div class="authors">Zhende Song 等 7 位作者</div><div class="abstract">Good for a technical audience, but less close to Zotero's native feel.</div></div></div><div class="pager"><span class="page-btn">上一页</span><span class="page-num">第 1 / 3 页</span><span class="page-btn">下一页</span></div></div>
+          </div>
+        </div>
+      </section>
+    </main>
+    <script>
+      const selectedConcept = new URLSearchParams(location.search).get("concept");
+      if (selectedConcept) {
+        document.body.classList.add("single");
+        document.querySelectorAll(".concept").forEach((concept) => {
+          concept.hidden = concept.id !== `concept-${selectedConcept}`;
+        });
+      }
+    </script>
+  </body>
+</html>
