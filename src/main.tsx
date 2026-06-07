@@ -1,5 +1,7 @@
-import React, { useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { createRoot } from "react-dom/client";
+import type { Session } from "@supabase/supabase-js";
+import { isSupabaseConfigured, supabase } from "./supabaseClient";
 import "./styles.css";
 
 type Author = {
@@ -40,6 +42,31 @@ type SearchResponse = {
 
 type SortKey = "relevance" | "citations" | "time";
 
+type PaperState = {
+  paper_id: string;
+  is_read: boolean;
+  is_saved: boolean;
+  is_dismissed: boolean;
+  read_at?: string | null;
+  saved_at?: string | null;
+  dismissed_at?: string | null;
+  updated_at?: string | null;
+};
+
+type StoredPaper = {
+  title: string;
+  abstract?: string | null;
+  tldr?: string | null;
+  venue?: string | null;
+  year?: number | null;
+  url?: string | null;
+  publication_date?: string | null;
+  authors_json?: Author[] | null;
+  open_access_pdf?: string | null;
+  doi?: string | null;
+  arxiv_id?: string | null;
+};
+
 const PAGE_SIZE = 5;
 const YEARS = Array.from({ length: 9 }, (_, index) => String(2022 + index));
 const MONTHS = Array.from({ length: 12 }, (_, index) => String(index + 1).padStart(2, "0"));
@@ -76,10 +103,16 @@ function App() {
   const [page, setPage] = useState(1);
   const [papers, setPapers] = useState<Paper[]>([]);
   const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [paperStates, setPaperStates] = useState<Record<string, PaperState>>({});
+  const [hideRead, setHideRead] = useState(false);
+  const [session, setSession] = useState<Session | null>(null);
+  const [email, setEmail] = useState("");
   const [loading, setLoading] = useState(false);
   const [importing, setImporting] = useState(false);
+  const [recommending, setRecommending] = useState(false);
   const [error, setError] = useState("");
   const [importStatus, setImportStatus] = useState("");
+  const [memoryStatus, setMemoryStatus] = useState("");
   const [searchNotice, setSearchNotice] = useState("");
   const [total, setTotal] = useState<number | null>(null);
 
@@ -94,15 +127,44 @@ function App() {
     return cloned;
   }, [papers, sortKey]);
 
-  const selectedPapers = useMemo(
-    () => sortedPapers.filter((paper) => selected.has(paper.paperId)),
-    [selected, sortedPapers],
+  const displayPapers = useMemo(
+    () =>
+      sortedPapers.filter((paper) => {
+        const state = paperStates[paper.paperId];
+        if (state?.is_dismissed) return false;
+        if (hideRead && state?.is_read) return false;
+        return true;
+      }),
+    [hideRead, paperStates, sortedPapers],
   );
-  const totalPages = Math.max(1, Math.ceil(sortedPapers.length / PAGE_SIZE));
+
+  const selectedPapers = useMemo(
+    () => displayPapers.filter((paper) => selected.has(paper.paperId)),
+    [displayPapers, selected],
+  );
+  const totalPages = Math.max(1, Math.ceil(displayPapers.length / PAGE_SIZE));
   const visiblePapers = useMemo(() => {
     const start = (page - 1) * PAGE_SIZE;
-    return sortedPapers.slice(start, start + PAGE_SIZE);
-  }, [page, sortedPapers]);
+    return displayPapers.slice(start, start + PAGE_SIZE);
+  }, [displayPapers, page]);
+
+  useEffect(() => {
+    if (!supabase) return;
+    supabase.auth.getSession().then(({ data }) => setSession(data.session));
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((_event, nextSession) => {
+      setSession(nextSession);
+      setPaperStates({});
+      setMemoryStatus("");
+    });
+
+    return () => subscription.unsubscribe();
+  }, []);
+
+  useEffect(() => {
+    void loadPaperStates(papers);
+  }, [papers, session]);
 
   async function searchPapers() {
     setLoading(true);
@@ -154,11 +216,11 @@ function App() {
   }
 
   function toggleAll() {
-    if (selected.size === sortedPapers.length) {
+    if (selected.size === displayPapers.length) {
       setSelected(new Set());
       return;
     }
-    setSelected(new Set(sortedPapers.map((paper) => paper.paperId)));
+    setSelected(new Set(displayPapers.map((paper) => paper.paperId)));
   }
 
   function toggleVenue(venue: string) {
@@ -181,7 +243,7 @@ function App() {
   }
 
   async function importSelectedToZotero() {
-    const target = selectedPapers.length > 0 ? selectedPapers : sortedPapers;
+    const target = selectedPapers.length > 0 ? selectedPapers : displayPapers;
     setImporting(true);
     setImportStatus("");
 
@@ -205,6 +267,189 @@ function App() {
     }
   }
 
+  async function signIn() {
+    if (!supabase) {
+      setMemoryStatus("Supabase 尚未配置。请先填写 .env。");
+      return;
+    }
+    if (!email.trim()) {
+      setMemoryStatus("请输入邮箱后再登录。");
+      return;
+    }
+    const { error: signInError } = await supabase.auth.signInWithOtp({
+      email: email.trim(),
+      options: {
+        emailRedirectTo: window.location.origin,
+      },
+    });
+    setMemoryStatus(signInError ? signInError.message : "登录链接已发送到邮箱，请打开邮件完成登录。");
+  }
+
+  async function signOut() {
+    if (!supabase) return;
+    await supabase.auth.signOut();
+    setSession(null);
+    setPaperStates({});
+  }
+
+  async function loadPaperStates(targetPapers: Paper[]) {
+    if (!supabase || !session || targetPapers.length === 0) return;
+    const ids = [...new Set(targetPapers.map((paper) => paper.paperId))];
+    const { data, error: stateError } = await supabase
+      .from("user_paper_states")
+      .select("paper_id,is_read,is_saved,is_dismissed,read_at,saved_at,dismissed_at,updated_at")
+      .in("paper_id", ids);
+
+    if (stateError) {
+      setMemoryStatus(`读取阅读状态失败：${stateError.message}`);
+      return;
+    }
+
+    setPaperStates((current) => {
+      const next = { ...current };
+      (data as PaperState[] | null)?.forEach((item) => {
+        next[item.paper_id] = item;
+      });
+      return next;
+    });
+  }
+
+  async function updatePaperState(paper: Paper, patch: Partial<PaperState>) {
+    if (!supabase || !session) {
+      setMemoryStatus("登录 Supabase 后才能同步已读和收藏状态。");
+      return;
+    }
+
+    const now = new Date().toISOString();
+    const current = paperStates[paper.paperId] ?? {
+      paper_id: paper.paperId,
+      is_read: false,
+      is_saved: false,
+      is_dismissed: false,
+    };
+    const next = {
+      ...current,
+      ...patch,
+      updated_at: now,
+    };
+
+    const { error: paperError } = await supabase.from("papers").upsert(toPaperRecord(paper), { onConflict: "id" });
+    if (paperError) {
+      setMemoryStatus(`保存论文失败：${paperError.message}`);
+      return;
+    }
+
+    const { error: stateError } = await supabase.from("user_paper_states").upsert(
+      {
+        user_id: session.user.id,
+        paper_id: paper.paperId,
+        is_read: next.is_read,
+        is_saved: next.is_saved,
+        is_dismissed: next.is_dismissed,
+        read_at: next.is_read ? next.read_at || now : null,
+        saved_at: next.is_saved ? next.saved_at || now : null,
+        dismissed_at: next.is_dismissed ? next.dismissed_at || now : null,
+        updated_at: now,
+      },
+      { onConflict: "user_id,paper_id" },
+    );
+
+    if (stateError) {
+      setMemoryStatus(`保存阅读状态失败：${stateError.message}`);
+      return;
+    }
+
+    setPaperStates((currentStates) => ({
+      ...currentStates,
+      [paper.paperId]: {
+        ...next,
+        read_at: next.is_read ? next.read_at || now : null,
+        saved_at: next.is_saved ? next.saved_at || now : null,
+        dismissed_at: next.is_dismissed ? next.dismissed_at || now : null,
+      },
+    }));
+    setMemoryStatus("阅读状态已同步。");
+  }
+
+  async function recommendFromRecentReads() {
+    if (!supabase || !session) {
+      setMemoryStatus("登录 Supabase 后才能根据已读论文推荐。");
+      return;
+    }
+    setRecommending(true);
+    setError("");
+    setImportStatus("");
+    setSearchNotice("");
+    setSelected(new Set());
+    setPage(1);
+
+    try {
+      const { data: recentStates, error: recentError } = await supabase
+        .from("user_paper_states")
+        .select(
+          "paper_id,papers(title,abstract,tldr,venue,year,url,publication_date,authors_json,open_access_pdf,doi,arxiv_id)",
+        )
+        .eq("is_read", true)
+        .eq("is_dismissed", false)
+        .order("read_at", { ascending: false })
+        .limit(12);
+
+      if (recentError) throw new Error(recentError.message);
+      const recentPapers = ((recentStates ?? []) as unknown as Array<{
+        paper_id: string;
+        papers: StoredPaper | StoredPaper[] | null;
+      }>).flatMap((item) => {
+        const storedPaper = Array.isArray(item.papers) ? item.papers[0] : item.papers;
+        return storedPaper ? [fromStoredPaper(item.paper_id, storedPaper)] : [];
+      });
+      if (recentPapers.length === 0) {
+        setMemoryStatus("还没有已读论文。先标记几篇已读，再生成推荐。");
+        return;
+      }
+
+      const recommendationQuery = buildRecommendationQuery(recentPapers);
+      const params = new URLSearchParams({
+        query: recommendationQuery,
+        context: recentPapers.map((paper) => `${paper.title} ${paper.tldr?.text ?? ""}`).join(" "),
+        limit,
+      });
+      const { dateFrom, dateTo } = buildDateRange(`${fromYear}-${fromMonth}`, `${toYear}-${toMonth}`);
+      if (dateFrom) params.set("dateFrom", dateFrom);
+      if (dateTo) params.set("dateTo", dateTo);
+      selectedVenues.forEach((venue) => params.append("venue", venue));
+
+      const response = await fetch(`/api/papers?${params.toString()}`);
+      if (!response.ok) throw new Error(`推荐检索返回 ${response.status}`);
+      const json = (await response.json()) as SearchResponse;
+      const { data: blockedStates } = await supabase
+        .from("user_paper_states")
+        .select("paper_id")
+        .or("is_read.eq.true,is_dismissed.eq.true")
+        .limit(1000);
+      const blocked = new Set([
+        ...recentPapers.map((paper) => normalizeText(paper.title)),
+        ...((blockedStates ?? []) as Array<{ paper_id: string }>).map((state) => state.paper_id),
+        ...Object.values(paperStates)
+          .filter((state) => state.is_read || state.is_dismissed)
+          .map((state) => state.paper_id),
+      ]);
+      const recommended = (json.data ?? []).filter(
+        (paper) => !blocked.has(paper.paperId) && !blocked.has(normalizeText(paper.title)),
+      );
+
+      setQuery(recommendationQuery);
+      setResearchIntent("根据最近已读论文自动推荐相似文献。");
+      setPapers(recommended);
+      setTotal(json.total ?? recommended.length);
+      setSearchNotice(json.fallbackReason ?? "");
+      setMemoryStatus(`已根据最近 ${recentPapers.length} 篇已读论文生成推荐。`);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "推荐失败。");
+    } finally {
+      setRecommending(false);
+    }
+  }
+
   return (
     <main className="app-shell">
       <section className="toolbar">
@@ -212,6 +457,26 @@ function App() {
           <p className="eyebrow">PaperReader</p>
           <h1>论文搜索与 Zotero 导入助手</h1>
           <p className="subtitle">按主题、研究意图、会议集合和月份范围检索论文，筛出高相关结果后导入 Zotero。</p>
+        </div>
+        <div className="auth-panel">
+          <span>{isSupabaseConfigured ? (session ? `已登录 ${session.user.email ?? ""}` : "登录后同步阅读记忆") : "未配置 Supabase"}</span>
+          {session ? (
+            <button onClick={signOut} type="button">
+              退出
+            </button>
+          ) : (
+            <div className="auth-form">
+              <input
+                value={email}
+                onChange={(event) => setEmail(event.target.value)}
+                placeholder="邮箱登录"
+                disabled={!isSupabaseConfigured}
+              />
+              <button onClick={signIn} disabled={!isSupabaseConfigured} type="button">
+                发送登录链接
+              </button>
+            </div>
+          )}
         </div>
       </section>
 
@@ -341,7 +606,10 @@ function App() {
         <section className="results-pane" aria-label="论文搜索结果">
           <section className="results-header">
             <div>
-              <strong>{sortedPapers.length}</strong> 篇结果
+              <strong>{displayPapers.length}</strong> 篇结果
+              {displayPapers.length !== sortedPapers.length ? (
+                <span className="muted"> / 已隐藏 {sortedPapers.length - displayPapers.length} 篇</span>
+              ) : null}
               {total !== null ? (
                 <span className="muted">
                   {" "}
@@ -350,22 +618,30 @@ function App() {
               ) : null}
             </div>
             <div className="result-controls">
+              <label className="toggle-control">
+                <input checked={hideRead} onChange={(event) => setHideRead(event.target.checked)} type="checkbox" />
+                隐藏已读
+              </label>
+              <button onClick={recommendFromRecentReads} disabled={!session || recommending} type="button">
+                {recommending ? "推荐中..." : "根据已读推荐"}
+              </button>
               <button
                 aria-label="直接发送论文条目到本地 Zotero"
                 onClick={importSelectedToZotero}
-                disabled={sortedPapers.length === 0 || importing}
+                disabled={displayPapers.length === 0 || importing}
                 title="需要本地 Zotero 桌面端正在运行"
               >
                 {importing ? "导入中..." : "导入 Zotero"}
               </button>
-              <button onClick={toggleAll} disabled={sortedPapers.length === 0}>
-                {sortedPapers.length > 0 && selected.size === sortedPapers.length ? "取消全选" : "全选"}
+              <button onClick={toggleAll} disabled={displayPapers.length === 0}>
+                {displayPapers.length > 0 && selected.size === displayPapers.length ? "取消全选" : "全选"}
               </button>
             </div>
           </section>
 
           {error ? <div className="error">{error}</div> : null}
           {importStatus ? <div className="import-status">{importStatus}</div> : null}
+          {memoryStatus ? <div className="memory-status">{memoryStatus}</div> : null}
           {searchNotice ? <div className="search-notice">{searchNotice}</div> : null}
 
           <section className="paper-list">
@@ -384,6 +660,8 @@ function App() {
                     <span>{paper.venue || "未知 venue"}</span>
                     <span>匹配度 {paper.relevanceScore ?? 0}</span>
                     <span>{paper.citationCount ?? 0} citations</span>
+                    {paperStates[paper.paperId]?.is_read ? <span>已读</span> : null}
+                    {paperStates[paper.paperId]?.is_saved ? <span>收藏</span> : null}
                   </div>
                   <h2>
                     {paper.url ? (
@@ -414,11 +692,46 @@ function App() {
                       </a>
                     ) : null}
                   </div>
+                  <div className="memory-actions">
+                    <button
+                      onClick={() =>
+                        updatePaperState(paper, {
+                          is_read: !paperStates[paper.paperId]?.is_read,
+                          read_at: paperStates[paper.paperId]?.is_read ? null : new Date().toISOString(),
+                        })
+                      }
+                      type="button"
+                    >
+                      {paperStates[paper.paperId]?.is_read ? "取消已读" : "标记已读"}
+                    </button>
+                    <button
+                      onClick={() =>
+                        updatePaperState(paper, {
+                          is_saved: !paperStates[paper.paperId]?.is_saved,
+                          saved_at: paperStates[paper.paperId]?.is_saved ? null : new Date().toISOString(),
+                        })
+                      }
+                      type="button"
+                    >
+                      {paperStates[paper.paperId]?.is_saved ? "取消收藏" : "收藏"}
+                    </button>
+                    <button
+                      onClick={() =>
+                        updatePaperState(paper, {
+                          is_dismissed: true,
+                          dismissed_at: new Date().toISOString(),
+                        })
+                      }
+                      type="button"
+                    >
+                      不感兴趣
+                    </button>
+                  </div>
                 </div>
               </article>
             ))}
 
-            {!loading && sortedPapers.length === 0 ? (
+            {!loading && displayPapers.length === 0 ? (
               <div className="empty-state">
                 <div className="empty-state-content">
                   <div className="empty-copy">
@@ -514,6 +827,121 @@ function buildDateRange(fromMonth: string, toMonth: string) {
   const dateTo = toMonth ? lastDayOfMonth(toMonth) : "";
   return { dateFrom, dateTo };
 }
+
+function toPaperRecord(paper: Paper) {
+  return {
+    id: paper.paperId,
+    title: paper.title,
+    normalized_title: normalizeText(paper.title),
+    doi: paper.externalIds?.DOI ?? null,
+    arxiv_id: paper.externalIds?.ArXiv ?? extractArxivId(paper),
+    url: paper.url ?? null,
+    venue: paper.venue ?? null,
+    year: paper.year ?? null,
+    publication_date: paper.publicationDate ?? null,
+    abstract: paper.abstract ?? null,
+    tldr: paper.tldr?.text ?? null,
+    authors_json: paper.authors ?? [],
+    open_access_pdf: paper.openAccessPdf?.url ?? null,
+    updated_at: new Date().toISOString(),
+  };
+}
+
+function fromStoredPaper(id: string, paper: StoredPaper): Paper {
+  return {
+    paperId: id,
+    title: paper.title,
+    abstract: paper.abstract ?? undefined,
+    year: paper.year ?? undefined,
+    venue: paper.venue ?? undefined,
+    publicationDate: paper.publication_date ?? undefined,
+    authors: paper.authors_json ?? [],
+    url: paper.url ?? undefined,
+    externalIds: {
+      DOI: paper.doi ?? undefined,
+      ArXiv: paper.arxiv_id ?? undefined,
+    },
+    openAccessPdf: {
+      url: paper.open_access_pdf ?? undefined,
+    },
+    tldr: paper.tldr ? { text: paper.tldr } : undefined,
+  };
+}
+
+function buildRecommendationQuery(recentPapers: Paper[]) {
+  const text = recentPapers
+    .map((paper) => [paper.title, paper.tldr?.text, paper.abstract, paper.venue].filter(Boolean).join(" "))
+    .join(" ");
+  const tokens = normalizeText(text)
+    .split(" ")
+    .filter((token) => token.length > 2 && !RECOMMENDATION_STOPWORDS.has(token));
+  const counts = new Map<string, number>();
+  tokens.forEach((token) => counts.set(token, (counts.get(token) ?? 0) + 1));
+
+  const phrases = [
+    "test-time compute",
+    "test-time scaling",
+    "llm reasoning",
+    "vision-language-action",
+    "robot manipulation",
+    "retrieval augmented generation",
+    "multimodal reasoning",
+    "tool use",
+    "self verification",
+  ].filter((phrase) => normalizeText(text).includes(normalizeText(phrase)));
+
+  const topTokens = [...counts.entries()]
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 10)
+    .map(([token]) => token);
+  return [...phrases, ...topTokens].slice(0, 12).join(" ");
+}
+
+function normalizeText(value = "") {
+  return value
+    .toLowerCase()
+    .replace(/['"]/g, "")
+    .replace(/[^a-z0-9]+/g, " ")
+    .trim();
+}
+
+function extractArxivId(paper: Paper) {
+  const values = [paper.externalIds?.DOI, paper.url, paper.openAccessPdf?.url];
+  for (const value of values) {
+    if (!value) continue;
+    const match = value.match(/(?:arxiv[.:/]|abs\/|pdf\/)(\d{4}\.\d{4,5})(?:v\d+)?/i);
+    if (match?.[1]) return match[1];
+  }
+  return null;
+}
+
+const RECOMMENDATION_STOPWORDS = new Set([
+  "about",
+  "after",
+  "also",
+  "and",
+  "are",
+  "can",
+  "for",
+  "from",
+  "has",
+  "have",
+  "into",
+  "its",
+  "large",
+  "model",
+  "models",
+  "our",
+  "paper",
+  "show",
+  "that",
+  "the",
+  "their",
+  "this",
+  "using",
+  "via",
+  "with",
+]);
 
 function lastDayOfMonth(month: string) {
   const [year, monthNumber] = month.split("-").map(Number);

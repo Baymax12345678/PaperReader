@@ -75,6 +75,10 @@ a:hover {
 }
 
 .toolbar {
+  align-items: flex-start;
+  display: flex;
+  gap: 18px;
+  justify-content: space-between;
   margin-bottom: 22px;
 }
 
@@ -103,6 +107,35 @@ h1 {
   line-height: 1.55;
   margin: 14px 0 0;
   max-width: 780px;
+}
+
+.auth-panel {
+  align-items: flex-end;
+  display: grid;
+  gap: 8px;
+  justify-items: end;
+  min-width: 290px;
+}
+
+.auth-panel span {
+  color: #6b7280;
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.auth-form {
+  display: grid;
+  gap: 8px;
+  grid-template-columns: minmax(150px, 1fr) auto;
+}
+
+.auth-form input {
+  background: #ffffff;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  color: #111827;
+  min-height: 40px;
+  padding: 9px 11px;
 }
 
 .workbench {
@@ -270,7 +303,21 @@ h1 {
 }
 
 .result-controls {
+  align-items: center;
   justify-content: flex-end;
+}
+
+.toggle-control {
+  align-items: center;
+  color: #374151;
+  display: inline-flex;
+  font-size: 13px;
+  font-weight: 800;
+  gap: 7px;
+}
+
+.toggle-control input {
+  accent-color: #0f766e;
 }
 
 .result-controls button,
@@ -288,7 +335,8 @@ h1 {
   padding: 12px 14px;
 }
 
-.import-status {
+.import-status,
+.memory-status {
   background: #ecfdf5;
   border: 1px solid #bbf7d0;
   border-radius: 8px;
@@ -296,6 +344,12 @@ h1 {
   font-weight: 750;
   margin-bottom: 12px;
   padding: 12px 14px;
+}
+
+.memory-status {
+  background: #eff6ff;
+  border-color: #bfdbfe;
+  color: #1d4ed8;
 }
 
 .search-notice {
@@ -361,6 +415,13 @@ h1 {
   color: #047857;
 }
 
+.paper-meta span:nth-child(5),
+.paper-meta span:nth-child(6) {
+  background: #eff6ff;
+  border-color: #bfdbfe;
+  color: #1d4ed8;
+}
+
 h2 {
   color: #111827;
   font-size: 20px;
@@ -400,6 +461,20 @@ h2 {
   overflow: hidden;
   -webkit-box-orient: vertical;
   -webkit-line-clamp: 3;
+}
+
+.memory-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.memory-actions button {
+  color: #374151;
+  font-size: 12px;
+  font-weight: 850;
+  padding: 7px 10px;
 }
 
 .empty-state {
@@ -638,6 +713,17 @@ h2 {
 }
 
 @media (max-width: 1020px) {
+  .toolbar {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .auth-panel {
+    align-items: stretch;
+    justify-items: stretch;
+    min-width: 0;
+  }
+
   .workbench {
     grid-template-columns: 1fr;
   }

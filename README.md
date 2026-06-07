@@ -10,6 +10,8 @@ PaperReader is a local paper discovery assistant for finding research papers by 
 - Sort results by relevance, citations, or publication time.
 - Open paper pages, DOI links, and PDFs from the result cards.
 - Import selected results into a running local Zotero desktop app.
+- Sign in with Supabase to sync read / saved / dismissed paper states.
+- Recommend similar papers from recently read papers.
 - Use OpenReview metadata for ICLR / NeurIPS / ICML conference records, which helps catch accepted papers that are not yet correctly labeled in other paper indexes.
 
 ## Data Sources
@@ -34,6 +36,27 @@ No paid API key is required for normal use. Public APIs may still rate-limit hea
 ```bash
 npm install
 ```
+
+## Supabase Memory Setup
+
+PaperReader can run without Supabase. Search and Zotero import still work, but read-state sync and recommendations from recently read papers are disabled.
+
+To enable memory sync:
+
+1. Create a free Supabase project.
+2. Open the Supabase SQL editor.
+3. Run the SQL in [supabase-schema.sql](./supabase-schema.sql).
+4. Copy `.env.example` to `.env`.
+5. Fill in your project URL and anon key:
+
+   ```bash
+   VITE_SUPABASE_URL=https://your-project.supabase.co
+   VITE_SUPABASE_ANON_KEY=your-anon-key
+   ```
+
+6. Restart the dev server.
+
+The app uses Supabase Auth magic links. Enter your email in the top-right login box and open the link from your email to sign in.
 
 ## Run in Development
 
@@ -84,6 +107,20 @@ Use the left panel:
 
 The research intent field is parsed for paper names, abbreviations, and research terms such as `LLM reasoning`, `VLA`, `vision-language-action`, `nabla-reasoner`, and `test-time compute`.
 
+## Read Memory and Recommendations
+
+After signing in with Supabase, each paper card can be marked as:
+
+- Read
+- Saved
+- Not interested
+
+You can also hide read papers from the current result list.
+
+Click **Recommend from Read Papers** to generate a new query from your recent read history. PaperReader extracts terms from recently read titles, abstracts, TLDRs, and venues, calls the existing search pipeline, and filters out papers already marked as read or dismissed.
+
+This feature stores only paper metadata and reading state. It does not upload PDFs.
+
 ## Zotero Import
 
 To import results directly into Zotero:
@@ -113,4 +150,4 @@ If import fails, check:
 - Venue metadata can lag behind conference announcements in general paper indexes. PaperReader supplements ICLR / NeurIPS / ICML with OpenReview when available.
 - Search results are ranked by a local relevance score after deduplication.
 - Direct Zotero import is local only; it does not require Zotero cloud sync.
-
+- Supabase is only used for read memory and recommendations. Public paper search APIs do not require paid keys.

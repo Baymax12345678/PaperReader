@@ -2,8 +2,8 @@ node_modules/
 dist/
 dist-server/
 *.tsbuildinfo
-src/**/*.js
-src/**/*.d.ts
+src/server/*.js
+src/server/*.d.ts
 vite.config.js
 vite.config.d.ts
 .DS_Store
