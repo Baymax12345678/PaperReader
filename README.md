@@ -70,6 +70,32 @@ Open:
 http://localhost:5173/
 ```
 
+## Desktop App Trial
+
+PaperReader also has an Electron desktop wrapper for local macOS testing.
+
+Run the desktop app in development:
+
+```bash
+npm run electron:dev
+```
+
+Build a local macOS app:
+
+```bash
+npm run electron:app
+```
+
+The generated app is written to:
+
+```text
+release/PaperReader-darwin-arm64/PaperReader.app
+```
+
+This trial build is unsigned. macOS may show a security warning the first time it is opened. For now, the app is intended for local use and testing, not public distribution.
+
+The desktop app bundles the frontend and starts a local backend inside Electron. Zotero import still talks to the local Zotero Connector at `127.0.0.1:23119`.
+
 ## Build and Run
 
 ```bash

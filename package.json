@@ -3,9 +3,14 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
+  "main": "electron/main.cjs",
   "scripts": {
     "dev": "vite --host 0.0.0.0",
     "build": "tsc -b && vite build && tsc src/server/paperApi.ts --target ES2022 --module NodeNext --moduleResolution NodeNext --outDir dist-server --skipLibCheck",
+    "electron:dev": "concurrently -k \"npm run dev -- --port 5173\" \"wait-on http://localhost:5173 && ELECTRON_RENDERER_URL=http://localhost:5173 electron .\"",
+    "electron:pack": "npm run electron:app",
+    "electron:app": "npm run build && node scripts/prepare-electron-app.mjs && node scripts/package-electron-app.mjs",
+    "dist:mac": "npm run electron:app",
     "start": "node server.mjs",
     "preview": "vite preview --host 0.0.0.0"
   },
@@ -20,6 +25,9 @@
   "devDependencies": {
     "@types/node": "^25.9.1",
     "@types/react": "^19.2.16",
-    "@types/react-dom": "^19.2.3"
+    "@types/react-dom": "^19.2.3",
+    "concurrently": "^10.0.3",
+    "electron": "^42.3.3",
+    "wait-on": "^9.0.10"
   }
 }
