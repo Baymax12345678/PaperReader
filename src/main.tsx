@@ -67,6 +67,8 @@ type StoredPaper = {
   arxiv_id?: string | null;
 };
 
+type AuthAction = "signin" | "signup";
+
 const PAGE_SIZE = 5;
 const YEARS = Array.from({ length: 9 }, (_, index) => String(2022 + index));
 const MONTHS = Array.from({ length: 12 }, (_, index) => String(index + 1).padStart(2, "0"));
@@ -108,7 +110,7 @@ function App() {
   const [session, setSession] = useState<Session | null>(null);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [authLoading, setAuthLoading] = useState(false);
+  const [authLoading, setAuthLoading] = useState<AuthAction | null>(null);
   const [loading, setLoading] = useState(false);
   const [importing, setImporting] = useState(false);
   const [recommending, setRecommending] = useState(false);
@@ -278,13 +280,17 @@ function App() {
       setMemoryStatus("请输入邮箱和密码。");
       return;
     }
-    setAuthLoading(true);
-    const { error: signInError } = await supabase.auth.signInWithPassword({
-      email: email.trim(),
-      password,
-    });
-    setMemoryStatus(signInError ? signInError.message : "已登录，阅读记忆会自动同步。");
-    setAuthLoading(false);
+    setAuthLoading("signin");
+    setMemoryStatus("正在登录...");
+    try {
+      const { error: signInError } = await supabase.auth.signInWithPassword({
+        email: email.trim(),
+        password,
+      });
+      setMemoryStatus(signInError ? formatAuthError(signInError.message) : "已登录，阅读记忆会自动同步。");
+    } finally {
+      setAuthLoading(null);
+    }
   }
 
   async function signUp() {
@@ -300,19 +306,23 @@ function App() {
       setMemoryStatus("密码至少需要 6 位。");
       return;
     }
-    setAuthLoading(true);
-    const { data, error: signUpError } = await supabase.auth.signUp({
-      email: email.trim(),
-      password,
-    });
-    if (signUpError) {
-      setMemoryStatus(signUpError.message);
-    } else if (data.session) {
-      setMemoryStatus("注册成功，已登录。");
-    } else {
-      setMemoryStatus("注册成功。若后台开启了邮箱确认，请先完成确认后再登录。");
+    setAuthLoading("signup");
+    setMemoryStatus("正在注册...");
+    try {
+      const { data, error: signUpError } = await supabase.auth.signUp({
+        email: email.trim(),
+        password,
+      });
+      if (signUpError) {
+        setMemoryStatus(formatAuthError(signUpError.message));
+      } else if (data.session) {
+        setMemoryStatus("注册成功，已登录。");
+      } else {
+        setMemoryStatus("注册成功，但 Supabase 后台开启了邮箱确认。请完成确认后再登录，或在 Email provider 中关闭 Confirm email。");
+      }
+    } finally {
+      setAuthLoading(null);
     }
-    setAuthLoading(false);
   }
 
   async function signOut() {
@@ -509,11 +519,16 @@ function App() {
                 type="password"
                 disabled={!isSupabaseConfigured}
               />
-              <button onClick={signIn} disabled={!isSupabaseConfigured || authLoading} type="button">
-                登录
+              <button onClick={signIn} disabled={!isSupabaseConfigured || Boolean(authLoading)} type="button">
+                {authLoading === "signin" ? "登录中" : "登录"}
               </button>
-              <button className="secondary-auth" onClick={signUp} disabled={!isSupabaseConfigured || authLoading} type="button">
-                注册
+              <button
+                className="secondary-auth"
+                onClick={signUp}
+                disabled={!isSupabaseConfigured || Boolean(authLoading)}
+                type="button"
+              >
+                {authLoading === "signup" ? "注册中" : "注册"}
               </button>
             </div>
           )}
@@ -1001,6 +1016,20 @@ function formatSortLabel(sortKey: SortKey) {
   if (sortKey === "citations") return "按引用排序";
   if (sortKey === "time") return "按时间排序";
   return "按相关性排序";
+}
+
+function formatAuthError(message: string) {
+  const normalized = message.toLowerCase();
+  if (normalized.includes("invalid login credentials")) {
+    return "登录失败：邮箱或密码不正确。若这个邮箱之前用邮件链接登录过，它可能还没有密码；请在 Supabase Auth -> Users 删除该用户后重新注册，或在后台给该用户设置密码。";
+  }
+  if (normalized.includes("user already registered") || normalized.includes("already been registered")) {
+    return "注册失败：这个邮箱已经注册过。请直接登录；如果忘记密码，需要在 Supabase 后台重设密码或删除该用户后重新注册。";
+  }
+  if (normalized.includes("email not confirmed")) {
+    return "登录失败：邮箱还没有确认。请完成确认邮件，或在 Supabase Authentication -> Providers -> Email 中关闭 Confirm email。";
+  }
+  return message;
 }
 
 function formatAuthors(authors?: Author[]) {
