@@ -38,6 +38,10 @@ create index if not exists papers_arxiv_id_idx on public.papers (arxiv_id);
 create index if not exists user_paper_states_user_updated_idx on public.user_paper_states (user_id, updated_at desc);
 create index if not exists user_paper_states_user_read_idx on public.user_paper_states (user_id, read_at desc) where is_read = true;
 
+grant usage on schema public to authenticated;
+grant select, insert, update on public.papers to authenticated;
+grant select, insert, update, delete on public.user_paper_states to authenticated;
+
 alter table public.papers enable row level security;
 alter table public.user_paper_states enable row level security;
 
