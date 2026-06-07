@@ -6,6 +6,7 @@ const { extname, join, normalize } = require("node:path");
 const { pathToFileURL } = require("node:url");
 
 const isDev = Boolean(process.env.ELECTRON_RENDERER_URL);
+const preferredPort = 17654;
 
 const mimeTypes = {
   ".html": "text/html; charset=utf-8",
@@ -22,6 +23,35 @@ const mimeTypes = {
 let localServer;
 let mainWindow;
 let appUrl;
+
+function listen(server, port) {
+  return new Promise((resolve, reject) => {
+    const onError = (error) => {
+      server.off("listening", onListening);
+      reject(error);
+    };
+    const onListening = () => {
+      server.off("error", onError);
+      resolve();
+    };
+
+    server.once("error", onError);
+    server.once("listening", onListening);
+    server.listen(port, "127.0.0.1");
+  });
+}
+
+async function listenOnStablePort(server) {
+  for (let port = preferredPort; port < preferredPort + 10; port += 1) {
+    try {
+      await listen(server, port);
+      return port;
+    } catch (error) {
+      if (error?.code !== "EADDRINUSE") throw error;
+    }
+  }
+  throw new Error(`Unable to start PaperReader local server on ports ${preferredPort}-${preferredPort + 9}.`);
+}
 
 async function startLocalServer() {
   const root = app.getAppPath();
@@ -46,16 +76,8 @@ async function startLocalServer() {
     }
   });
 
-  await new Promise((resolve, reject) => {
-    localServer.once("error", reject);
-    localServer.listen(0, "127.0.0.1", resolve);
-  });
-
-  const address = localServer.address();
-  if (!address || typeof address === "string") {
-    throw new Error("Unable to start PaperReader local server.");
-  }
-  return `http://127.0.0.1:${address.port}/`;
+  const port = await listenOnStablePort(localServer);
+  return `http://127.0.0.1:${port}/`;
 }
 
 async function createWindow(initialUrl) {

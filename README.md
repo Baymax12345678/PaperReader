@@ -97,6 +97,8 @@ This trial build is unsigned. macOS may show a security warning the first time i
 
 The desktop app bundles the frontend and starts a local backend inside Electron. Zotero import still talks to the local Zotero Connector at `127.0.0.1:23119`.
 
+The desktop app uses a stable local address, normally `http://127.0.0.1:17654/`, so Supabase can keep the local login session between app restarts. After switching from an older build that used random ports, sign in once again; future restarts should restore the session automatically.
+
 ## Build and Run
 
 ```bash
