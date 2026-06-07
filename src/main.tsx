@@ -89,9 +89,6 @@ const PRESET_VENUES = [
   "IJCAI",
 ];
 
-const isDesktopApp = Boolean(window.paperReader?.isDesktop);
-const authRedirectUrl = isDesktopApp ? "paperreader://auth/callback" : window.location.origin;
-
 function App() {
   const [query, setQuery] = useState("test-time scaling");
   const [researchIntent, setResearchIntent] = useState("");
@@ -110,6 +107,8 @@ function App() {
   const [hideRead, setHideRead] = useState(false);
   const [session, setSession] = useState<Session | null>(null);
   const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [authLoading, setAuthLoading] = useState(false);
   const [loading, setLoading] = useState(false);
   const [importing, setImporting] = useState(false);
   const [recommending, setRecommending] = useState(false);
@@ -275,17 +274,45 @@ function App() {
       setMemoryStatus("Supabase 尚未配置。请先填写 .env。");
       return;
     }
-    if (!email.trim()) {
-      setMemoryStatus("请输入邮箱后再登录。");
+    if (!email.trim() || !password) {
+      setMemoryStatus("请输入邮箱和密码。");
       return;
     }
-    const { error: signInError } = await supabase.auth.signInWithOtp({
+    setAuthLoading(true);
+    const { error: signInError } = await supabase.auth.signInWithPassword({
       email: email.trim(),
-      options: {
-        emailRedirectTo: authRedirectUrl,
-      },
+      password,
     });
-    setMemoryStatus(signInError ? signInError.message : "登录链接已发送到邮箱，请打开邮件完成登录。");
+    setMemoryStatus(signInError ? signInError.message : "已登录，阅读记忆会自动同步。");
+    setAuthLoading(false);
+  }
+
+  async function signUp() {
+    if (!supabase) {
+      setMemoryStatus("Supabase 尚未配置。请先填写 .env。");
+      return;
+    }
+    if (!email.trim() || !password) {
+      setMemoryStatus("请输入邮箱和密码。");
+      return;
+    }
+    if (password.length < 6) {
+      setMemoryStatus("密码至少需要 6 位。");
+      return;
+    }
+    setAuthLoading(true);
+    const { data, error: signUpError } = await supabase.auth.signUp({
+      email: email.trim(),
+      password,
+    });
+    if (signUpError) {
+      setMemoryStatus(signUpError.message);
+    } else if (data.session) {
+      setMemoryStatus("注册成功，已登录。");
+    } else {
+      setMemoryStatus("注册成功。若后台开启了邮箱确认，请先完成确认后再登录。");
+    }
+    setAuthLoading(false);
   }
 
   async function signOut() {
@@ -472,11 +499,21 @@ function App() {
               <input
                 value={email}
                 onChange={(event) => setEmail(event.target.value)}
-                placeholder="邮箱登录"
+                placeholder="邮箱"
                 disabled={!isSupabaseConfigured}
               />
-              <button onClick={signIn} disabled={!isSupabaseConfigured} type="button">
-                发送登录链接
+              <input
+                value={password}
+                onChange={(event) => setPassword(event.target.value)}
+                placeholder="密码"
+                type="password"
+                disabled={!isSupabaseConfigured}
+              />
+              <button onClick={signIn} disabled={!isSupabaseConfigured || authLoading} type="button">
+                登录
+              </button>
+              <button className="secondary-auth" onClick={signUp} disabled={!isSupabaseConfigured || authLoading} type="button">
+                注册
               </button>
             </div>
           )}

@@ -114,7 +114,7 @@ h1 {
   display: grid;
   gap: 8px;
   justify-items: end;
-  min-width: 290px;
+  min-width: 360px;
 }
 
 .auth-panel span {
@@ -126,7 +126,7 @@ h1 {
 .auth-form {
   display: grid;
   gap: 8px;
-  grid-template-columns: minmax(150px, 1fr) auto;
+  grid-template-columns: minmax(150px, 1fr) minmax(120px, 0.8fr) auto auto;
 }
 
 .auth-form input {
@@ -136,6 +136,11 @@ h1 {
   color: #111827;
   min-height: 40px;
   padding: 9px 11px;
+}
+
+.secondary-auth {
+  background: #ffffff;
+  color: #0f766e;
 }
 
 .workbench {

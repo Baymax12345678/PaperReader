@@ -37,23 +37,8 @@ for (const [key, value] of [
   await run("/usr/libexec/PlistBuddy", ["-c", `Set :${key} ${value}`, plist]);
 }
 
-await run("/usr/libexec/PlistBuddy", ["-c", "Delete :CFBundleURLTypes", plist], {
-  allowFailure: true,
-  quiet: true,
-});
-await run("/usr/libexec/PlistBuddy", ["-c", "Add :CFBundleURLTypes array", plist]);
-await run("/usr/libexec/PlistBuddy", ["-c", "Add :CFBundleURLTypes:0 dict", plist]);
-await run("/usr/libexec/PlistBuddy", ["-c", "Add :CFBundleURLTypes:0:CFBundleURLName string com.paperreader.desktop", plist]);
-await run("/usr/libexec/PlistBuddy", ["-c", "Add :CFBundleURLTypes:0:CFBundleURLSchemes array", plist]);
-await run("/usr/libexec/PlistBuddy", ["-c", "Add :CFBundleURLTypes:0:CFBundleURLSchemes:0 string paperreader", plist]);
-
 await rm(join(resourcesDir, "default_app.asar"), { force: true });
 await rm(appResources, { force: true, recursive: true });
 await cp(join(root, ".electron-app"), appResources, { recursive: true });
-
-await run(
-  "/System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister",
-  ["-f", outputApp],
-);
 
 console.log(`Packaged ${outputApp}`);

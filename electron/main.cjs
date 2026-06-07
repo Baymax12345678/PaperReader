@@ -22,47 +22,6 @@ const mimeTypes = {
 let localServer;
 let mainWindow;
 let appUrl;
-let pendingAuthCallbackUrl;
-
-const protocolScheme = "paperreader";
-
-function registerProtocolClient() {
-  if (process.defaultApp) {
-    if (process.argv.length >= 2) {
-      app.setAsDefaultProtocolClient(protocolScheme, process.execPath, [process.argv[1]]);
-    }
-    return;
-  }
-  app.setAsDefaultProtocolClient(protocolScheme);
-}
-
-function toAppAuthUrl(callbackUrl) {
-  if (!appUrl) return null;
-  const url = new URL(callbackUrl);
-  const target = new URL(appUrl);
-  target.search = url.search;
-  target.hash = url.hash;
-  return target.toString();
-}
-
-async function handleAuthCallback(callbackUrl) {
-  if (!appUrl) {
-    pendingAuthCallbackUrl = callbackUrl;
-    return;
-  }
-
-  const targetUrl = toAppAuthUrl(callbackUrl);
-  if (!targetUrl) return;
-
-  if (!mainWindow || mainWindow.isDestroyed()) {
-    await createWindow(targetUrl);
-    return;
-  }
-
-  if (mainWindow.isMinimized()) mainWindow.restore();
-  mainWindow.focus();
-  await mainWindow.loadURL(targetUrl);
-}
 
 async function startLocalServer() {
   const root = app.getAppPath();
@@ -110,7 +69,6 @@ async function createWindow(initialUrl) {
     webPreferences: {
       contextIsolation: true,
       nodeIntegration: false,
-      preload: join(__dirname, "preload.cjs"),
       sandbox: true,
     },
   });
@@ -124,40 +82,17 @@ async function createWindow(initialUrl) {
   await mainWindow.loadURL(initialUrl || appUrl);
 }
 
-const gotSingleInstanceLock = app.requestSingleInstanceLock();
-
-if (!gotSingleInstanceLock) {
+if (!app.requestSingleInstanceLock()) {
   app.quit();
 } else {
-  app.on("second-instance", (_event, argv) => {
-    const callbackUrl = argv.find((item) => item.startsWith(`${protocolScheme}://`));
-    if (callbackUrl) {
-      void handleAuthCallback(callbackUrl);
-    } else if (mainWindow && !mainWindow.isDestroyed()) {
+  app.on("second-instance", () => {
+    if (mainWindow && !mainWindow.isDestroyed()) {
       if (mainWindow.isMinimized()) mainWindow.restore();
       mainWindow.focus();
     }
   });
 
-  app.on("open-url", (event, callbackUrl) => {
-    event.preventDefault();
-    void handleAuthCallback(callbackUrl);
-  });
-
-  app.whenReady().then(() => {
-    registerProtocolClient();
-    const launchCallbackUrl = process.argv.find((item) => item.startsWith(`${protocolScheme}://`));
-    if (launchCallbackUrl) pendingAuthCallbackUrl = launchCallbackUrl;
-
-    return createWindow().then(() => {
-      if (pendingAuthCallbackUrl) {
-        const callbackUrl = pendingAuthCallbackUrl;
-        pendingAuthCallbackUrl = undefined;
-        return handleAuthCallback(callbackUrl);
-      }
-      return undefined;
-    });
-  });
+  app.whenReady().then(createWindow);
 }
 
 app.on("activate", () => {

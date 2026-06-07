@@ -54,9 +54,10 @@ To enable memory sync:
    VITE_SUPABASE_ANON_KEY=your-anon-key
    ```
 
-6. Restart the dev server.
+6. In Supabase, open **Authentication -> Providers -> Email** and make sure email/password sign-in is enabled.
+7. Restart the dev server.
 
-The app uses Supabase Auth magic links. Enter your email in the top-right login box and open the link from your email to sign in.
+The app uses Supabase email/password auth. Use the top-right form to register once, then sign in with the same email and password. If you do not want registration to require email confirmation, turn off **Confirm email** in Supabase's Email provider settings.
 
 ## Run in Development
 
@@ -95,14 +96,6 @@ release/PaperReader-darwin-arm64/PaperReader.app
 This trial build is unsigned. macOS may show a security warning the first time it is opened. For now, the app is intended for local use and testing, not public distribution.
 
 The desktop app bundles the frontend and starts a local backend inside Electron. Zotero import still talks to the local Zotero Connector at `127.0.0.1:23119`.
-
-For Supabase email login in the desktop app, add this redirect URL in Supabase:
-
-```text
-paperreader://auth/callback
-```
-
-In the Supabase dashboard, open **Authentication -> URL Configuration -> Redirect URLs** and add the URL above. Without this, the login email may open a browser session instead of returning to the desktop app.
 
 ## Build and Run
 
