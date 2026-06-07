@@ -89,6 +89,9 @@ const PRESET_VENUES = [
   "IJCAI",
 ];
 
+const isDesktopApp = Boolean(window.paperReader?.isDesktop);
+const authRedirectUrl = isDesktopApp ? "paperreader://auth/callback" : window.location.origin;
+
 function App() {
   const [query, setQuery] = useState("test-time scaling");
   const [researchIntent, setResearchIntent] = useState("");
@@ -279,7 +282,7 @@ function App() {
     const { error: signInError } = await supabase.auth.signInWithOtp({
       email: email.trim(),
       options: {
-        emailRedirectTo: window.location.origin,
+        emailRedirectTo: authRedirectUrl,
       },
     });
     setMemoryStatus(signInError ? signInError.message : "登录链接已发送到邮箱，请打开邮件完成登录。");

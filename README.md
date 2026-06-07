@@ -96,6 +96,14 @@ This trial build is unsigned. macOS may show a security warning the first time i
 
 The desktop app bundles the frontend and starts a local backend inside Electron. Zotero import still talks to the local Zotero Connector at `127.0.0.1:23119`.
 
+For Supabase email login in the desktop app, add this redirect URL in Supabase:
+
+```text
+paperreader://auth/callback
+```
+
+In the Supabase dashboard, open **Authentication -> URL Configuration -> Redirect URLs** and add the URL above. Without this, the login email may open a browser session instead of returning to the desktop app.
+
 ## Build and Run
 
 ```bash

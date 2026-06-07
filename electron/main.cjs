@@ -20,6 +20,49 @@ const mimeTypes = {
 };
 
 let localServer;
+let mainWindow;
+let appUrl;
+let pendingAuthCallbackUrl;
+
+const protocolScheme = "paperreader";
+
+function registerProtocolClient() {
+  if (process.defaultApp) {
+    if (process.argv.length >= 2) {
+      app.setAsDefaultProtocolClient(protocolScheme, process.execPath, [process.argv[1]]);
+    }
+    return;
+  }
+  app.setAsDefaultProtocolClient(protocolScheme);
+}
+
+function toAppAuthUrl(callbackUrl) {
+  if (!appUrl) return null;
+  const url = new URL(callbackUrl);
+  const target = new URL(appUrl);
+  target.search = url.search;
+  target.hash = url.hash;
+  return target.toString();
+}
+
+async function handleAuthCallback(callbackUrl) {
+  if (!appUrl) {
+    pendingAuthCallbackUrl = callbackUrl;
+    return;
+  }
+
+  const targetUrl = toAppAuthUrl(callbackUrl);
+  if (!targetUrl) return;
+
+  if (!mainWindow || mainWindow.isDestroyed()) {
+    await createWindow(targetUrl);
+    return;
+  }
+
+  if (mainWindow.isMinimized()) mainWindow.restore();
+  mainWindow.focus();
+  await mainWindow.loadURL(targetUrl);
+}
 
 async function startLocalServer() {
   const root = app.getAppPath();
@@ -56,8 +99,8 @@ async function startLocalServer() {
   return `http://127.0.0.1:${address.port}/`;
 }
 
-async function createWindow() {
-  const mainWindow = new BrowserWindow({
+async function createWindow(initialUrl) {
+  mainWindow = new BrowserWindow({
     width: 1440,
     height: 940,
     minWidth: 1120,
@@ -67,6 +110,7 @@ async function createWindow() {
     webPreferences: {
       contextIsolation: true,
       nodeIntegration: false,
+      preload: join(__dirname, "preload.cjs"),
       sandbox: true,
     },
   });
@@ -76,11 +120,45 @@ async function createWindow() {
     return { action: "deny" };
   });
 
-  const appUrl = isDev ? process.env.ELECTRON_RENDERER_URL || "http://localhost:5173/" : await startLocalServer();
-  await mainWindow.loadURL(appUrl);
+  appUrl = isDev ? process.env.ELECTRON_RENDERER_URL || "http://localhost:5173/" : await startLocalServer();
+  await mainWindow.loadURL(initialUrl || appUrl);
 }
 
-app.whenReady().then(createWindow);
+const gotSingleInstanceLock = app.requestSingleInstanceLock();
+
+if (!gotSingleInstanceLock) {
+  app.quit();
+} else {
+  app.on("second-instance", (_event, argv) => {
+    const callbackUrl = argv.find((item) => item.startsWith(`${protocolScheme}://`));
+    if (callbackUrl) {
+      void handleAuthCallback(callbackUrl);
+    } else if (mainWindow && !mainWindow.isDestroyed()) {
+      if (mainWindow.isMinimized()) mainWindow.restore();
+      mainWindow.focus();
+    }
+  });
+
+  app.on("open-url", (event, callbackUrl) => {
+    event.preventDefault();
+    void handleAuthCallback(callbackUrl);
+  });
+
+  app.whenReady().then(() => {
+    registerProtocolClient();
+    const launchCallbackUrl = process.argv.find((item) => item.startsWith(`${protocolScheme}://`));
+    if (launchCallbackUrl) pendingAuthCallbackUrl = launchCallbackUrl;
+
+    return createWindow().then(() => {
+      if (pendingAuthCallbackUrl) {
+        const callbackUrl = pendingAuthCallbackUrl;
+        pendingAuthCallbackUrl = undefined;
+        return handleAuthCallback(callbackUrl);
+      }
+      return undefined;
+    });
+  });
+}
 
 app.on("activate", () => {
   if (BrowserWindow.getAllWindows().length === 0) {
